@@ -5,6 +5,7 @@
 
 #include "config.h"
 #include "icon.h"
+#include <cstdint>
 
 namespace BleJammer {
 
@@ -152,8 +153,8 @@ namespace BleJammer {
 
 namespace BleScan {
 
-BLEScan* scan;
-BLEScanResults results;
+NimBLEScan* scan;
+NimBLEScanResults results;
 
 int selectedIndex = 0;
 int displayStartIndex = 0;
@@ -169,8 +170,8 @@ void blescanSetup() {
   Serial.begin(115200);
   u8g2.setFont(u8g2_font_6x10_tr);
   
-  BLEDevice::init("");
-  scan = BLEDevice::getScan();
+  NimBLEDevice::init("");
+  scan = NimBLEDevice::getScan();
   scan->setActiveScan(true);
   
   pinMode(BUTTON_UP_PIN, INPUT_PULLUP);
@@ -246,13 +247,13 @@ void blescanLoop() {
     for (int i = 0; i < 5; i++) {
       int deviceIndex = i + displayStartIndex;
       if (deviceIndex >= deviceCount) break;
-      BLEAdvertisedDevice device = results.getDevice(deviceIndex);
-      String deviceName = device.getName().c_str();
+      const NimBLEAdvertisedDevice* device = results.getDevice(deviceIndex);
+      String deviceName = device->getName().c_str();
       u8g2.setFont(u8g2_font_6x10_tr);
       if (deviceName.length() == 0) {
         deviceName = "No Name";
       }
-      String deviceInfo = deviceName.substring(0, 7) + " | RSSI " + String(device.getRSSI());
+      String deviceInfo = deviceName.substring(0, 7) + " | RSSI " + String(device->getRSSI());
       if (deviceIndex == selectedIndex) {
         u8g2.drawStr(0, 23 + i * 10, ">");
       }
@@ -262,14 +263,14 @@ void blescanLoop() {
   }
 
   if (showDetails) {
-    BLEAdvertisedDevice device = results.getDevice(selectedIndex);
+    const NimBLEAdvertisedDevice* device = results.getDevice(selectedIndex);
     u8g2.clearBuffer();
     u8g2.setFont(u8g2_font_6x10_tr);
     u8g2.drawStr(0, 10, "Device Details:");
     u8g2.setFont(u8g2_font_5x8_tr);
-    String name = "Name: " + String(device.getName().c_str());
-    String address = "Addr: " + String(device.getAddress().toString().c_str());
-    String rssi = "RSSI: " + String(device.getRSSI());
+    String name = "Name: " + String(device->getName().c_str());
+    String address = "Addr: " + String(device->getAddress().toString().c_str());
+    String rssi = "RSSI: " + String(device->getRSSI());
     u8g2.drawStr(0, 20, name.c_str());
     u8g2.drawStr(0, 30, address.c_str());
     u8g2.drawStr(0, 40, rssi.c_str());
@@ -289,7 +290,7 @@ namespace SourApple {
 
 std::string device_uuid = "00003082-0000-1000-9000-00805f9b34fb";
 
-BLEAdvertising *Advertising;
+NimBLEAdvertising *Advertising;
 uint8_t packet[17];
 
 #define MAX_LINES 8
@@ -339,8 +340,8 @@ void displayAdvertisementData() {
 
 }
 
-BLEAdvertisementData getOAdvertisementData() {
-  BLEAdvertisementData advertisementData = BLEAdvertisementData();
+NimBLEAdvertisementData getOAdvertisementData() {
+  NimBLEAdvertisementData advertisementData = NimBLEAdvertisementData();
   uint8_t i = 0;
 
   packet[i++] = 17 - 1;    // Packet Length
@@ -359,7 +360,7 @@ BLEAdvertisementData getOAdvertisementData() {
   packet[i++] =  0x10;  // Type ???
   esp_fill_random(&packet[i], 3);
 
-  advertisementData.addData(std::string((char *)packet, 17));
+  advertisementData.addData((uint8_t*)packet, 17);
   return advertisementData;
 }
 
@@ -367,37 +368,38 @@ void sourappleSetup() {
   
   u8g2.setFont(u8g2_font_profont11_tf); 
 
-  BLEDevice::init("");
+  NimBLEDevice::init("");
   esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P9); 
   esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, ESP_PWR_LVL_P9); 
   esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_SCAN , ESP_PWR_LVL_P9);
 
-  BLEServer *pServer = BLEDevice::createServer();
+  NimBLEServer *pServer = NimBLEDevice::createServer();
   Advertising = pServer->getAdvertising();
 
-  esp_bd_addr_t null_addr = {0xFE, 0xED, 0xC0, 0xFF, 0xEE, 0x69};
-  Advertising->setDeviceAddress(null_addr, BLE_ADDR_TYPE_RANDOM);
+  uint8_t null_addr[6] = {0xFE, 0xED, 0xC0, 0xFF, 0xEE, 0x69};
+  NimBLEDevice::setOwnAddrType(BLE_ADDR_RANDOM);
+  NimBLEDevice::setOwnAddr(null_addr);
 }
 
 void sourappleLoop() {
 
-    esp_bd_addr_t dummy_addr = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    uint8_t dummy_addr[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     for (int i = 0; i < 6; i++) {
       dummy_addr[i] = random(256);
       if (i == 0) {
         dummy_addr[i] |= 0xF0;
       }
     }
-    BLEAdvertisementData oAdvertisementData = getOAdvertisementData();
-
-    Advertising->setDeviceAddress(dummy_addr, BLE_ADDR_TYPE_RANDOM);
+    NimBLEAdvertisementData oAdvertisementData = getOAdvertisementData();
+    Advertising->stop();
+    NimBLEDevice::setOwnAddr(dummy_addr);
     Advertising->addServiceUUID(device_uuid);
     Advertising->setAdvertisementData(oAdvertisementData);
 
     Advertising->setMinInterval(0x20);
     Advertising->setMaxInterval(0x20);
-    Advertising->setMinPreferred(0x20);
-    Advertising->setMaxPreferred(0x20);
+
+    Advertising->setPreferredParams(0x20, 0x20);
 
     Advertising->start();
 
@@ -409,7 +411,7 @@ void sourappleLoop() {
 
 namespace Spoofer {
 
-  BLEAdvertising *pAdvertising;
+  NimBLEAdvertising *pAdvertising;
   std::string devices_uuid = "00003082-0000-1000-9000-00805f9b34fb";
 
   int menuIndex = 0;
@@ -487,27 +489,27 @@ namespace Spoofer {
     0x02, 0x0A, 0x00 // TX Power (placeholder, set dynamically)
   };
 
-  bool generateSamsungAdvPacket(uint8_t modelIndex, BLEAdvertisementData& advData) {
+  bool generateSamsungAdvPacket(uint8_t modelIndex, NimBLEAdvertisementData& advData) {
     if (modelIndex >= samsungModelCount) return false;
     uint8_t advDataRaw[SAMSUNG_ADV_SIZE];
     memcpy(advDataRaw, SAMSUNG_ADV_TEMPLATE, SAMSUNG_ADV_SIZE);
     advDataRaw[SAMSUNG_ADV_SIZE - 1] = samsungModels[modelIndex].value;
-    advData.addData(std::string((char*)advDataRaw, SAMSUNG_ADV_SIZE));
+    advData.addData((uint8_t*)advDataRaw, SAMSUNG_ADV_SIZE);
     return true;
   }
 
-  bool generateGoogleAdvPacket(BLEAdvertisementData& advData) {
+  bool generateGoogleAdvPacket(NimBLEAdvertisementData& advData) {
     uint8_t advDataRaw[GOOGLE_ADV_SIZE];
     memcpy(advDataRaw, GOOGLE_ADV_TEMPLATE, GOOGLE_ADV_SIZE);
     advDataRaw[GOOGLE_ADV_SIZE - 1] = (uint8_t)(random(121) - 100); 
-    advData.addData(std::string((char*)advDataRaw, GOOGLE_ADV_SIZE));
+    advData.addData((uint8_t*)advDataRaw, GOOGLE_ADV_SIZE);
     return true;
   }
 
-  BLEAdvertisementData getAdvertisementData() {
-    BLEAdvertisementData oAdvertisementData = BLEAdvertisementData();
+  NimBLEAdvertisementData getAdvertisementData() {
+    NimBLEAdvertisementData oAdvertisementData = NimBLEAdvertisementData();
     if (deviceType <= 17) { // Apple (1–17)
-      oAdvertisementData.addData(std::string((char*)DEVICES[device_index], 31));
+      oAdvertisementData.addData((uint8_t*)DEVICES[device_index], 31);
     } else if (deviceType <= 20) { // Samsung (18–20)
       uint8_t samsungIndex = deviceType - 18; // 18→0, 19→1, 20→2
       generateSamsungAdvPacket(samsungIndex, oAdvertisementData);
@@ -515,11 +517,26 @@ namespace Spoofer {
       generateGoogleAdvPacket(oAdvertisementData);
     }
     switch (advType) {
-      case 1: pAdvertising->setAdvertisementType(ADV_TYPE_IND); break;
-      case 2: pAdvertising->setAdvertisementType(ADV_TYPE_DIRECT_IND_HIGH); break;
-      case 3: pAdvertising->setAdvertisementType(ADV_TYPE_SCAN_IND); break;
-      case 4: pAdvertising->setAdvertisementType(ADV_TYPE_NONCONN_IND); break;
-      case 5: pAdvertising->setAdvertisementType(ADV_TYPE_DIRECT_IND_LOW); break;
+      case 1: // ADV_IND (connectable undirected)
+        pAdvertising->setConnectableMode(BLE_GAP_CONN_MODE_UND);
+        pAdvertising->setDiscoverableMode(BLE_GAP_DISC_MODE_GEN);
+        break;
+      case 2: // ADV_DIRECT_IND_HIGH (connectable directed high duty)
+        pAdvertising->setConnectableMode(BLE_GAP_CONN_MODE_DIR);
+        pAdvertising->setDiscoverableMode(BLE_GAP_DISC_MODE_NON);
+        break;
+      case 3: // ADV_SCAN_IND (scannable undirected)
+        pAdvertising->setConnectableMode(BLE_GAP_CONN_MODE_NON);
+        pAdvertising->setDiscoverableMode(BLE_GAP_DISC_MODE_GEN);
+        break;
+      case 4: // ADV_NONCONN_IND (non-connectable undirected)
+        pAdvertising->setConnectableMode(BLE_GAP_CONN_MODE_NON);
+        pAdvertising->setDiscoverableMode(BLE_GAP_DISC_MODE_NON);
+        break;
+      case 5: // ADV_DIRECT_IND_LOW (connectable directed low duty)
+        pAdvertising->setConnectableMode(BLE_GAP_CONN_MODE_DIR);
+        pAdvertising->setDiscoverableMode(BLE_GAP_DISC_MODE_LTD);
+        break;
     }
     return oAdvertisementData;
   }
@@ -614,19 +631,19 @@ namespace Spoofer {
       pAdvertising->stop();
       Serial.println("Advertising stopped.");
     } else {
-      esp_bd_addr_t dummy_addr = {0x00};
+      uint8_t dummy_addr[6] = {0x00};
       for (int i = 0; i < 6; i++) {
         dummy_addr[i] = random(256);
         if (i == 0) dummy_addr[i] |= 0xC0; // Random non-resolvable
       }
-      BLEAdvertisementData oAdvertisementData = getAdvertisementData();
-      pAdvertising->setDeviceAddress(dummy_addr, BLE_ADDR_TYPE_RANDOM);
+      NimBLEAdvertisementData oAdvertisementData = getAdvertisementData();
+      pAdvertising->stop();
+      NimBLEDevice::setOwnAddr(dummy_addr);
       pAdvertising->addServiceUUID(devices_uuid);
       pAdvertising->setAdvertisementData(oAdvertisementData);
       pAdvertising->setMinInterval(0x20); // 32.5ms
       pAdvertising->setMaxInterval(0x20);
-      pAdvertising->setMinPreferred(0x20);
-      pAdvertising->setMaxPreferred(0x20);
+      pAdvertising->setPreferredParams(0x20, 0x20);
       pAdvertising->start();
       Serial.println("Advertising started.");
     }
@@ -703,12 +720,13 @@ namespace Spoofer {
     pinMode(BTN_PIN_RIGHT, INPUT_PULLUP);
     pinMode(BTN_PIN_LEFT, INPUT_PULLUP);
 
-    BLEDevice::init("nRF-BOX");
+    NimBLEDevice::init("nRF-BOX");
     esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, ESP_PWR_LVL_P9); // +9dBm
-    BLEServer *pServer = BLEDevice::createServer();
+    NimBLEServer *pServer = NimBLEDevice::createServer();
     pAdvertising = pServer->getAdvertising();
-    esp_bd_addr_t null_addr = {0xFE, 0xED, 0xC0, 0xFF, 0xEE, 0x69};
-    pAdvertising->setDeviceAddress(null_addr, BLE_ADDR_TYPE_RANDOM);
+    uint8_t null_addr[6] = {0xFE, 0xED, 0xC0, 0xFF, 0xEE, 0x69};
+    NimBLEDevice::setOwnAddrType(BLE_ADDR_RANDOM);
+    NimBLEDevice::setOwnAddr(null_addr);
 
     updateDisplay();
 

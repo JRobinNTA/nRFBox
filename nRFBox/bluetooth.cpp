@@ -5,7 +5,6 @@
 
 #include "config.h"
 #include "icon.h"
-#include <cstdint>
 
 namespace BleJammer {
 

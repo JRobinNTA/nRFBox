@@ -33,19 +33,21 @@
 #include <Arduino.h>
 #include <U8g2lib.h>
 #include <Wire.h>
-#include <SPI.h>
-#include <Adafruit_NeoPixel.h>
-#include <EEPROM.h>
 #include <Preferences.h>
 #include <vector>
 #include <string>
-#include <SD.h>
 #include <Update.h>
 
 // BLE-specific dependencies
+#ifdef USE_NIMBLE
 #include <NimBLEDevice.h>
 #include <NimBLEUtils.h>
 #include <NimBLEServer.h>
+#else
+#include <BLEDevice.h>
+#include <BLEUtils.h>
+#include <BLEServer.h>
+#endif
 
 // nRF24-specific dependencies
 #include <nRF24L01.h>

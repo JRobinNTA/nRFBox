@@ -17,6 +17,13 @@
 #include <Update.h>
 #include <SPI.h>
 
+// Board Specific Settings
+
+// Only define USE_NIMBLE for boards that require it
+#if defined(ARDUINO_ESP32C6_DEV) || defined(ARDUINO_ESP32C5_DEV)
+  #define USE_NIMBLE
+#endif
+
 void neopixelSetup();
 void neopixelLoop();
 

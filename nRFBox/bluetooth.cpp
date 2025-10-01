@@ -704,7 +704,11 @@ namespace Spoofer {
       }
       BLEAdvertisementData oAdvertisementData = getAdvertisementData();
       pAdvertising->stop();
+#ifdef USE_NIMBLE
       pAdvertising->addServiceUUID(devices_uuid);
+#else
+      pAdvertising->addServiceUUID(devices_uuid.c_str());
+#endif
       pAdvertising->setAdvertisementData(oAdvertisementData);
       pAdvertising->setMinInterval(0x20); // 32.5ms
       pAdvertising->setMaxInterval(0x20);
